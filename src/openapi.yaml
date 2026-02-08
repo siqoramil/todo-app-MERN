@@ -1,0 +1,730 @@
+openapi: 3.0.3
+info:
+  title: Todo MERN API
+  description: |
+    A production-ready Todo API built with Express.js, MongoDB, and TypeScript.
+
+    ## Authentication
+    This API uses JWT-based authentication with access and refresh tokens.
+    - **Access Token**: Short-lived (15 minutes), sent in Authorization header
+    - **Refresh Token**: Long-lived (30 days), stored in httpOnly cookie
+
+    ## Getting Started
+    1. Register a new account using `/api/auth/register`
+    2. Use the returned access token in the Authorization header: `Bearer <token>`
+    3. When the access token expires, use `/api/auth/refresh` to get a new one
+  version: 1.0.0
+  contact:
+    name: API Support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000/api
+    description: Development server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Auth
+    description: Authentication endpoints
+  - name: Todos
+    description: Todo management endpoints
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the health status of the API
+      operationId: healthCheck
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: '2024-01-01T00:00:00.000Z'
+
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new user
+      description: Creates a new user account and returns authentication tokens
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refreshToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; Path=/; HttpOnly; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login user
+      description: Authenticates a user and returns authentication tokens
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refreshToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; Path=/; HttpOnly; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Refresh access token
+      description: Uses the refresh token from cookie to generate new tokens
+      operationId: refreshToken
+      responses:
+        '200':
+          description: Token refreshed successfully
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refreshToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; Path=/; HttpOnly; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout user
+      description: Revokes the refresh token and clears the cookie
+      operationId: logout
+      responses:
+        '200':
+          description: Logged out successfully
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: refreshToken=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Logged out successfully
+
+  /auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Get current user
+      description: Returns the authenticated user's profile
+      operationId: getMe
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /todos:
+    get:
+      tags:
+        - Todos
+      summary: Get all todos
+      description: Returns a paginated list of todos for the authenticated user with optional filtering and sorting
+      operationId: getTodos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page (max 100)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: status
+          in: query
+          description: Filter by completion status
+          schema:
+            type: string
+            enum: [all, active, completed]
+        - name: priority
+          in: query
+          description: Filter by priority
+          schema:
+            type: string
+            enum: [low, medium, high]
+        - name: tag
+          in: query
+          description: Filter by tag
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: Search by title (case-insensitive)
+          schema:
+            type: string
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          schema:
+            type: string
+            enum: [createdAt, dueDate, priority]
+            default: createdAt
+        - name: order
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Todos retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PaginatedTodos'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Todos
+      summary: Create a new todo
+      description: Creates a new todo for the authenticated user
+      operationId: createTodo
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTodoRequest'
+      responses:
+        '201':
+          description: Todo created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Todo'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /todos/{id}:
+    get:
+      tags:
+        - Todos
+      summary: Get a todo by ID
+      description: Returns a single todo by its ID (must be owned by the authenticated user)
+      operationId: getTodoById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Todo ID
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+      responses:
+        '200':
+          description: Todo retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Todo'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Todo not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      tags:
+        - Todos
+      summary: Update a todo
+      description: Updates a todo by its ID (must be owned by the authenticated user)
+      operationId: updateTodo
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Todo ID
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTodoRequest'
+      responses:
+        '200':
+          description: Todo updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Todo'
+        '400':
+          description: Validation error or no fields to update
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Todo not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Todos
+      summary: Delete a todo
+      description: Deletes a todo by its ID (must be owned by the authenticated user)
+      operationId: deleteTodo
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Todo ID
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+      responses:
+        '200':
+          description: Todo deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Todo deleted successfully
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Todo not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Enter your access token
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - name
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 128
+          description: Must contain at least one lowercase letter, one uppercase letter, and one number
+          example: Password123
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: John Doe
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: Password123
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            user:
+              type: object
+              properties:
+                id:
+                  type: string
+                  example: 507f1f77bcf86cd799439011
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                name:
+                  type: string
+                  example: John Doe
+            accessToken:
+              type: string
+              example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        name:
+          type: string
+          example: John Doe
+        createdAt:
+          type: string
+          format: date-time
+          example: '2024-01-01T00:00:00.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2024-01-01T00:00:00.000Z'
+
+    CreateTodoRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Buy groceries
+        description:
+          type: string
+          maxLength: 2000
+          example: Milk, eggs, bread
+        completed:
+          type: boolean
+          default: false
+          example: false
+        priority:
+          type: string
+          enum: [low, medium, high]
+          default: medium
+          example: high
+        dueDate:
+          type: string
+          format: date-time
+          example: '2024-12-31T23:59:59.000Z'
+        tags:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            maxLength: 50
+          example: ['shopping', 'urgent']
+
+    UpdateTodoRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: Buy groceries
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+          example: Milk, eggs, bread
+        completed:
+          type: boolean
+          example: true
+        priority:
+          type: string
+          enum: [low, medium, high]
+          example: medium
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2024-12-31T23:59:59.000Z'
+        tags:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            maxLength: 50
+          example: ['shopping']
+
+    Todo:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        title:
+          type: string
+          example: Buy groceries
+        description:
+          type: string
+          example: Milk, eggs, bread
+        completed:
+          type: boolean
+          example: false
+        priority:
+          type: string
+          enum: [low, medium, high]
+          example: high
+        dueDate:
+          type: string
+          format: date-time
+          example: '2024-12-31T23:59:59.000Z'
+        tags:
+          type: array
+          items:
+            type: string
+          example: ['shopping', 'urgent']
+        userId:
+          type: string
+          example: 507f1f77bcf86cd799439011
+        createdAt:
+          type: string
+          format: date-time
+          example: '2024-01-01T00:00:00.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2024-01-01T00:00:00.000Z'
+
+    PaginatedTodos:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Todo'
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 25
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Validation failed
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            body:
+              - 'email: Invalid email format'
+              - 'password: Password must be at least 8 characters'
+        stack:
+          type: string
+          description: Stack trace (only in development mode)
