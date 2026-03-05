@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install nodemailer)",
+      "Bash(npm install -D @types/nodemailer)",
+      "Bash(npx tsc --noEmit)"
+    ]
+  }
+}

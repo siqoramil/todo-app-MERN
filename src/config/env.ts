@@ -17,6 +17,16 @@ const envSchema = z.object({
     .default('false'),
   COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
+
+  // SMTP
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.string().transform(Number).default('587'),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  SMTP_FROM: z.string().default('noreply@todoapp.com'),
+
+  // Frontend URL
+  CLIENT_URL: z.string().default('http://localhost:3000'),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

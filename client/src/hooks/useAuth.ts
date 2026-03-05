@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { authService, RegisterInput, LoginInput } from '@/services/authService';
+import { authService, RegisterInput, LoginInput, ForgotPasswordInput, ResetPasswordInput } from '@/services/authService';
 import { useAuthStore } from '@/stores/authStore';
 import { AxiosError } from 'axios';
 import type { ApiError } from '@/types';
@@ -59,6 +59,35 @@ export function useLogout() {
       logout();
       queryClient.clear();
       navigate('/login');
+    },
+  });
+}
+
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (data: ForgotPasswordInput) => authService.forgotPassword(data),
+    onSuccess: (message) => {
+      toast.success(message);
+    },
+    onError: (error: AxiosError<ApiError>) => {
+      const message = error.response?.data?.message || 'Failed to send reset email';
+      toast.error(message);
+    },
+  });
+}
+
+export function useResetPassword() {
+  const navigate = useNavigate();
+
+  return useMutation({
+    mutationFn: (data: ResetPasswordInput) => authService.resetPassword(data),
+    onSuccess: (message) => {
+      toast.success(message);
+      navigate('/login');
+    },
+    onError: (error: AxiosError<ApiError>) => {
+      const message = error.response?.data?.message || 'Failed to reset password';
+      toast.error(message);
     },
   });
 }

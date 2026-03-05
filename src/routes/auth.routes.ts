@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authController, registerSchema, loginSchema } from '../controllers/authController.js';
+import { authController, registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from '../controllers/authController.js';
 import { authenticate } from '../middlewares/auth.js';
 import { validateBody } from '../middlewares/validate.js';
 
@@ -12,6 +12,10 @@ router.post('/login', validateBody(loginSchema), authController.login);
 router.post('/refresh', authController.refresh);
 
 router.post('/logout', authController.logout);
+
+router.post('/forgot-password', validateBody(forgotPasswordSchema), authController.forgotPassword);
+
+router.post('/reset-password', validateBody(resetPasswordSchema), authController.resetPassword);
 
 router.get('/me', authenticate, authController.getMe);
 

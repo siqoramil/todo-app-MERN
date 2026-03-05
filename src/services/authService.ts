@@ -1,8 +1,10 @@
+import crypto from 'crypto';
 import { Types } from 'mongoose';
 import { userRepo } from '../repositories/userRepo.js';
 import { tokenService, AuthTokens } from './tokenService.js';
+import { emailService } from './emailService.js';
 import { ApiError } from '../utils/apiError.js';
-import { IUserDocument } from '../models/User.js';
+import { User, IUserDocument } from '../models/User.js';
 
 export interface RegisterInput {
   email: string;
@@ -97,6 +99,47 @@ export const authService = {
 
   async logoutAll(userId: string): Promise<void> {
     await tokenService.revokeAllUserRefreshTokens(userId);
+  },
+
+  async forgotPassword(email: string): Promise<void> {
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      // Don't reveal whether email exists
+      return;
+    }
+
+    const resetToken = user.createPasswordResetToken();
+    await user.save({ validateBeforeSave: false });
+
+    try {
+      await emailService.sendPasswordResetEmail(user.email, resetToken);
+    } catch {
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save({ validateBeforeSave: false });
+      throw ApiError.internal('Failed to send password reset email. Please try again later.');
+    }
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    }).select('+password +passwordResetToken +passwordResetExpires');
+
+    if (!user) {
+      throw ApiError.badRequest('Invalid or expired reset token');
+    }
+
+    user.password = newPassword;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    // Revoke all existing refresh tokens for security
+    await tokenService.revokeAllUserRefreshTokens(user._id.toString());
   },
 
   async getMe(userId: string): Promise<UserResponse> {

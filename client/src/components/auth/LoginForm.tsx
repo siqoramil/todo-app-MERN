@@ -78,6 +78,11 @@ export function LoginForm() {
               </button>
             </div>
           </div>
+          <div className="flex justify-end">
+            <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+              Forgot password?
+            </Link>
+          </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" isLoading={isPending}>

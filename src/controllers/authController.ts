@@ -29,6 +29,22 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email format').toLowerCase().trim(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Reset token is required'),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password cannot exceed 128 characters')
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+      'Password must contain at least one lowercase letter, one uppercase letter, and one number'
+    ),
+});
+
 const setRefreshTokenCookie = (res: Response, token: string): void => {
   res.cookie(REFRESH_TOKEN_COOKIE_NAME, token, {
     httpOnly: true,
@@ -110,6 +126,26 @@ export const authController = {
     res.status(200).json({
       success: true,
       message: 'Logged out successfully',
+    });
+  }),
+
+  forgotPassword: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { email } = forgotPasswordSchema.parse(req.body);
+    await authService.forgotPassword(email);
+
+    res.status(200).json({
+      success: true,
+      message: 'If an account with that email exists, a password reset link has been sent',
+    });
+  }),
+
+  resetPassword: asyncHandler(async (req: Request, res: Response): Promise<void> => {
+    const { token, password } = resetPasswordSchema.parse(req.body);
+    await authService.resetPassword(token, password);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully',
     });
   }),
 
